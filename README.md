@@ -112,19 +112,24 @@ docker run -d --name trino -p 8081:8080 -v "${PWD}\catalog:/etc/trino/catalog" t
 
 ```powershell
 Шаг 1. Посмотрел количество и размер файлов до изменений.
+
 SELECT count(*) AS files, sum(file_size_in_bytes) AS bytes
 FROM silver.lakehouse."parts_without_complaints$files";
 
 Шаг 2. Добавил новую колонку source_note.
+
 ALTER TABLE silver.lakehouse.parts_without_complaints ADD COLUMN source_note varchar;
 
 Шаг 3. Проверил, что у старых строк в новой колонке NULL.
+
 SELECT partkey, suppkey, source_note FROM silver.lakehouse.parts_without_complaints LIMIT 5;
 
 Шаг 4. Переименовал колонку source_note в check_note.
+
 ALTER TABLE silver.lakehouse.parts_without_complaints RENAME COLUMN source_note TO check_note;
 
 Шаг 5. Снова посмотрел количество и размер файлов.
+
 SELECT count(*) AS files, sum(file_size_in_bytes) AS bytes
 FROM silver.lakehouse."parts_without_complaints$files";
 ```
@@ -133,17 +138,21 @@ FROM silver.lakehouse."parts_without_complaints$files";
 
 ```powershell
 Шаг 1. Узнал идентификатор текущего снапшота таблицы.
+
 SELECT committed_at, CAST(snapshot_id AS varchar) AS snapshot_id, operation
 FROM gold.lakehouse."q16_result$snapshots"
 ORDER BY committed_at;
 
 Шаг 2. Удалил строки бренда Brand#11.
+
 DELETE FROM gold.lakehouse.q16_result WHERE brand = 'Brand#11';
 
 Шаг 3. Прочитал старую версию таблицы, которая была до удаления.
+
 SELECT count(*) FROM gold.lakehouse.q16_result FOR VERSION AS OF 7741756319158492962;
 
 Шаг 4. Откатил таблицу к старому снапшоту.
+
 ALTER TABLE gold.lakehouse.q16_result EXECUTE rollback_to_snapshot(7741756319158492962);
 ```
 
@@ -159,6 +168,7 @@ ALTER TABLE gold.lakehouse.q16_result EXECUTE rollback_to_snapshot(7741756319158
 
 ```powershell
 Шаг 1. Скачал jar-файлы Iceberg. Первый нужен Spark как основной runtime, второй добавляет работу с S3.
+
 # Iceberg для Spark, основной runtime-файл
 curl.exe -fsSL -o spark\jars\iceberg-spark-runtime-3.5_2.12-1.7.1.jar https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-spark-runtime-3.5_2.12/1.7.1/iceberg-spark-runtime-3.5_2.12-1.7.1.jar
 # Iceberg, библиотеки для работы с S3
@@ -167,10 +177,12 @@ curl.exe -fsSL -o spark\jars\iceberg-aws-bundle-1.7.1.jar https://repo1.maven.or
 Шаг 2. Настроил Spark через файл spark/conf/spark-defaults.conf из репозитория. В нём каталог bronze указывает на Lakekeeper и MinIO.
 
 Шаг 3. Запустил Spark SQL в контейнере, подключив к нему папку с настройками и jar-файлы.
+
 # Spark SQL, в контейнер подключены папка с настройками и jar-файлы
 docker run -it --rm -v "${PWD}\spark\conf:/opt/spark/conf" -v "${PWD}\spark\jars:/opt/spark/iceberg-jars" apache/spark:3.5.3 /opt/spark/bin/spark-sql
 
 Шаг 4. Проверил, что таблицы Bronze видны, сравнил число строк в partsupp с результатом из Trino и выполнил запрос Q16.
+
 SHOW TABLES IN bronze.lakehouse;
 
 SELECT count(*) FROM bronze.lakehouse.partsupp;
