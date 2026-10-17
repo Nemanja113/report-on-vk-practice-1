@@ -164,7 +164,7 @@ ALTER TABLE gold.lakehouse.q16_result EXECUTE rollback_to_snapshot(7741756319158
 
 Когда делал с Spark, я сделал следующие действия. Сначала в файле spark-defaults.conf прописал каталог bronze с адресом Lakekeeper и доступом к MinIO. Затем запустил Spark в Docker и командой SHOW TABLES увидел три таблицы слоя Bronze, part, partsupp и supplier. После этого посчитал строки в таблице partsupp и получил 8 000 000. В конце выполнил запрос Q16 над таблицами Bronze и получил 27 840 строк, столько же, сколько в Trino.
 
-### Скрипты развертывания
+### Скрипты запуска Spark SQL и проверки таблиц Bronze
 
 ```powershell
 Шаг 1. Скачал jar-файлы Iceberg. Первый нужен Spark как основной runtime, второй добавляет работу с S3.
