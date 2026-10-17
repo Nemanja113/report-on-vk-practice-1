@@ -21,18 +21,28 @@
 
 ### Скрипты, которыми поднимал стек
 
+Стек поднял по гайду, но с изменениями в портах. Стандартные порты PostgreSQL и Trino оказались заняты, поэтому запустил PostgreSQL на порту 5433, а Trino на порту 8081. Из-за этого в адресе базы для Lakekeeper указал порт 5433. Бакеты bronze, silver и gold создал в консоли MinIO, а три warehouse с такими же именами создал в интерфейсе Lakekeeper. Файлы каталогов Trino лежат в папке catalog в репозитории, по одному файлу на каждый слой и файл tpch.properties для генератора данных. Также создал три бакета: bronze, silver и gold. Их можно увидеть на первом скриншоте. Для каждого слоя создал свой warehouse с таким же именем и привязал его к своему бакету. Все три warehouse имеют статус active, что видно на втором скриншоте.
+
 ```powershell
-# MinIO — объектное хранилище: порт 9000 — S3 API, порт 9001 — веб-консоль, данные в томе minio-data
-docker run -d --name lakehouse-minio -p 9000:9000 -p 9001:9001 -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin -v minio-data:/data quay.io/minio/minio:latest server /data --console-address ":9001"
-# PostgreSQL — база для метаданных Lakekeeper: порт на компьютере 5433 вместо 5432, данные в томе pg-data
+# MinIO: объектное хранилище, порт 9000 для S3 API, порт 9001 для веб-консоли, данные в томе minio-data
+docker run -d --name lakehouse-minio -p 9000:9000 -p 9001:9001 -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin -v minio-data:/data pgsty/silo:latest server /data --console-address ":9001"
+# PostgreSQL: база для метаданных Lakekeeper, порт на компьютере 5433 вместо 5432, данные в томе pg-data
 docker run -d --name lakehouse-pg -e POSTGRES_PASSWORD=postgres -p 5433:5432 -v pg-data:/var/lib/postgresql/data postgres:17
 # Lakekeeper, миграция: создаёт таблицы каталога в PostgreSQL, запускается один раз
 docker run --rm -e 'LAKEKEEPER__PG_ENCRYPTION_KEY=This-is-NOT-Secure!' -e 'LAKEKEEPER__PG_DATABASE_URL_READ=postgresql://postgres:postgres@host.docker.internal:5433/postgres' -e 'LAKEKEEPER__PG_DATABASE_URL_WRITE=postgresql://postgres:postgres@host.docker.internal:5433/postgres' quay.io/lakekeeper/catalog:latest-main migrate
-# Lakekeeper — Iceberg REST Catalog на порту 8181, адрес PostgreSQL указан с портом 5433
+# Lakekeeper: Iceberg REST Catalog на порту 8181, адрес PostgreSQL указан с портом 5433
 docker run -d --name lakekeeper -e 'LAKEKEEPER__PG_ENCRYPTION_KEY=This-is-NOT-Secure!' -e 'LAKEKEEPER__PG_DATABASE_URL_READ=postgresql://postgres:postgres@host.docker.internal:5433/postgres' -e 'LAKEKEEPER__PG_DATABASE_URL_WRITE=postgresql://postgres:postgres@host.docker.internal:5433/postgres' -p 8181:8181 quay.io/lakekeeper/catalog:latest-main serve
-# Trino — SQL-движок: порт на компьютере 8081 вместо 8080, папка catalog с файлами каталогов подключена в контейнер
+# Trino: SQL-движок, порт на компьютере 8081 вместо 8080, папка catalog с файлами каталогов подключена в контейнер
 docker run -d --name trino -p 8081:8080 -v "${PWD}\catalog:/etc/trino/catalog" trinodb/trino:476
 ```
+
+<img width="1920" height="921" alt="image" src="https://github.com/user-attachments/assets/3cfbbcc9-1e4d-47bb-a609-bea57c671837" />
+
+MinIO с тремя бакетами
+
+<img width="1920" height="925" alt="image" src="https://github.com/user-attachments/assets/d80a041c-adab-458c-80e5-eecc868c77e9" />
+
+Lakekeeper с тремя warehouse
 
 ## 3. Разбор запроса — какие данные нужны
 
