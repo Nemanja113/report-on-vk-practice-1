@@ -24,15 +24,15 @@
 Стек поднял по гайду, но с изменениями в портах. Стандартные порты PostgreSQL и Trino оказались заняты, поэтому запустил PostgreSQL на порту 5433, а Trino на порту 8081. Из-за этого в адресе базы для Lakekeeper указал порт 5433. Бакеты bronze, silver и gold создал в консоли MinIO, а три warehouse с такими же именами создал в интерфейсе Lakekeeper. Файлы каталогов Trino создал в папке catalog, по одному файлу на каждый слой и файл tpch.properties для генератора данных.  
 
 ```powershell
-# MinIO: объектное хранилище, порт 9000 для S3 API, порт 9001 для веб-консоли, данные в томе minio-data
+# Запуск MinIO, объектного хранилища. Порт 9000 для S3 API, порт 9001 для веб-консоли, данные в томе minio-data
 docker run -d --name lakehouse-minio -p 9000:9000 -p 9001:9001 -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin -v minio-data:/data pgsty/silo:latest server /data --console-address ":9001"
-# PostgreSQL: база для метаданных Lakekeeper, порт на компьютере 5433 вместо 5432, данные в томе pg-data
+# Запуск PostgreSQL для метаданных Lakekeeper. Порт на компьютере 5433 вместо 5432, данные в томе pg-data
 docker run -d --name lakehouse-pg -e POSTGRES_PASSWORD=postgres -p 5433:5432 -v pg-data:/var/lib/postgresql/data postgres:17
-# Lakekeeper, миграция: создаёт таблицы каталога в PostgreSQL, запускается один раз
+# Миграция Lakekeeper создаёт таблицы каталога в PostgreSQL и запускается один раз
 docker run --rm -e 'LAKEKEEPER__PG_ENCRYPTION_KEY=This-is-NOT-Secure!' -e 'LAKEKEEPER__PG_DATABASE_URL_READ=postgresql://postgres:postgres@host.docker.internal:5433/postgres' -e 'LAKEKEEPER__PG_DATABASE_URL_WRITE=postgresql://postgres:postgres@host.docker.internal:5433/postgres' quay.io/lakekeeper/catalog:latest-main migrate
-# Lakekeeper: Iceberg REST Catalog на порту 8181, адрес PostgreSQL указан с портом 5433
+# Запуск Lakekeeper, Iceberg REST Catalog на порту 8181. Адрес PostgreSQL указан с портом 5433
 docker run -d --name lakekeeper -e 'LAKEKEEPER__PG_ENCRYPTION_KEY=This-is-NOT-Secure!' -e 'LAKEKEEPER__PG_DATABASE_URL_READ=postgresql://postgres:postgres@host.docker.internal:5433/postgres' -e 'LAKEKEEPER__PG_DATABASE_URL_WRITE=postgresql://postgres:postgres@host.docker.internal:5433/postgres' -p 8181:8181 quay.io/lakekeeper/catalog:latest-main serve
-# Trino: SQL-движок, порт на компьютере 8081 вместо 8080, папка catalog с файлами каталогов подключена в контейнер
+# Запуск Trino, SQL-движка. Порт на компьютере 8081 вместо 8080, папка catalog с настройками каталогов подключена в контейнер
 docker run -d --name trino -p 8081:8080 -v "${PWD}\catalog:/etc/trino/catalog" trinodb/trino:476
 ```
 <br>
@@ -111,20 +111,20 @@ docker run -d --name trino -p 8081:8080 -v "${PWD}\catalog:/etc/trino/catalog" t
 ### Скрипт для примера schema evolution
 
 ```powershell
-Шаг 1. Посмотреть количество и размер файлов до изменений.
+Шаг 1. Посмотрел количество и размер файлов до изменений.
 SELECT count(*) AS files, sum(file_size_in_bytes) AS bytes
 FROM silver.lakehouse."parts_without_complaints$files";
 
-Шаг 2. Добавить новую колонку.
+Шаг 2. Добавил новую колонку source_note.
 ALTER TABLE silver.lakehouse.parts_without_complaints ADD COLUMN source_note varchar;
 
-Шаг 3. Проверить, что у старых строк в новой колонке NULL.
+Шаг 3. Проверил, что у старых строк в новой колонке NULL.
 SELECT partkey, suppkey, source_note FROM silver.lakehouse.parts_without_complaints LIMIT 5;
 
-Шаг 4. Переименовать колонку.
+Шаг 4. Переименовал колонку source_note в check_note.
 ALTER TABLE silver.lakehouse.parts_without_complaints RENAME COLUMN source_note TO check_note;
 
-Шаг 5. Снова посмотреть количество и размер файлов.
+Шаг 5. Снова посмотрел количество и размер файлов.
 SELECT count(*) AS files, sum(file_size_in_bytes) AS bytes
 FROM silver.lakehouse."parts_without_complaints$files";
 ```
@@ -132,18 +132,18 @@ FROM silver.lakehouse."parts_without_complaints$files";
 ### Скрипт восстановления данных из снапшота
 
 ```powershell
-Шаг 1. Узнать идентификатор текущего снапшота
+Шаг 1. Узнал идентификатор текущего снапшота таблицы.
 SELECT committed_at, CAST(snapshot_id AS varchar) AS snapshot_id, operation
 FROM gold.lakehouse."q16_result$snapshots"
 ORDER BY committed_at;
 
-Шаг2. Удалить строки бренда Brand#11
+Шаг 2. Удалил строки бренда Brand#11.
 DELETE FROM gold.lakehouse.q16_result WHERE brand = 'Brand#11';
 
-Шаг 3. Прочитать старую версию таблицы до удаления
+Шаг 3. Прочитал старую версию таблицы, которая была до удаления.
 SELECT count(*) FROM gold.lakehouse.q16_result FOR VERSION AS OF 7741756319158492962;
 
-Шаг 4. Откатить таблицу к старому снапшоту
+Шаг 4. Откатил таблицу к старому снапшоту.
 ALTER TABLE gold.lakehouse.q16_result EXECUTE rollback_to_snapshot(7741756319158492962);
 ```
 
@@ -151,7 +151,43 @@ ALTER TABLE gold.lakehouse.q16_result EXECUTE rollback_to_snapshot(7741756319158
 
 | Инструмент | Почему выбрал именно его |
 |---|---|
-|||
+| Spark 3.5.3 | Выбрал Spark, потому что познакомился с ним на лабораторной работе, когда заполнял таблицу с результатами и сравнивал время запросов в Trino и Spark. Он читает те же таблицы Iceberg через Lakekeeper, поэтому данные копировать не нужно. Запрос Q16 отработал в нём за 12,032 с, то есть медленнее, чем в Trino, зато Spark лучше подходит для тяжёлой пакетной обработки, например для пересборки слоёв. |
+
+Когда делал с Spark, я сделал следующие действия. Сначала в файле spark-defaults.conf прописал каталог bronze с адресом Lakekeeper и доступом к MinIO. Затем запустил Spark в Docker и командой SHOW TABLES увидел три таблицы слоя Bronze, part, partsupp и supplier. После этого посчитал строки в таблице partsupp и получил 8 000 000. В конце выполнил запрос Q16 над таблицами Bronze и получил 27 840 строк, столько же, сколько в Trino.
+
+### Скрипты развертывания
+
+```powershell
+Шаг 1. Скачал jar-файлы Iceberg. Первый нужен Spark как основной runtime, второй добавляет работу с S3.
+# Iceberg для Spark, основной runtime-файл
+curl.exe -fsSL -o spark\jars\iceberg-spark-runtime-3.5_2.12-1.7.1.jar https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-spark-runtime-3.5_2.12/1.7.1/iceberg-spark-runtime-3.5_2.12-1.7.1.jar
+# Iceberg, библиотеки для работы с S3
+curl.exe -fsSL -o spark\jars\iceberg-aws-bundle-1.7.1.jar https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-aws-bundle/1.7.1/iceberg-aws-bundle-1.7.1.jar
+
+Шаг 2. Настроил Spark через файл spark/conf/spark-defaults.conf из репозитория. В нём каталог bronze указывает на Lakekeeper и MinIO.
+
+Шаг 3. Запустил Spark SQL в контейнере, подключив к нему папку с настройками и jar-файлы.
+# Spark SQL, в контейнер подключены папка с настройками и jar-файлы
+docker run -it --rm -v "${PWD}\spark\conf:/opt/spark/conf" -v "${PWD}\spark\jars:/opt/spark/iceberg-jars" apache/spark:3.5.3 /opt/spark/bin/spark-sql
+
+Шаг 4. Проверил, что таблицы Bronze видны, сравнил число строк в partsupp с результатом из Trino и выполнил запрос Q16.
+SHOW TABLES IN bronze.lakehouse;
+
+SELECT count(*) FROM bronze.lakehouse.partsupp;
+
+SELECT count(*) FROM (
+  SELECT p.brand, p.type, p.size, count(DISTINCT ps.suppkey) AS supplier_cnt
+  FROM bronze.lakehouse.partsupp AS ps
+  JOIN bronze.lakehouse.part AS p ON p.partkey = ps.partkey
+  WHERE p.brand <> 'Brand#45'
+    AND p.type NOT LIKE 'MEDIUM POLISHED%'
+    AND p.size IN (49, 14, 23, 45, 19, 3, 36, 9)
+    AND ps.suppkey NOT IN (SELECT suppkey FROM bronze.lakehouse.supplier WHERE comment LIKE '%Customer%Complaints%')
+  GROUP BY p.brand, p.type, p.size
+);
+```
 
 ## 7. Выводы
+
+Медальон помогает разделить работу на три шага. В Bronze лежат сырые данные, в Silver они очищены и соединены, а в Gold остаётся готовый ответ на запрос. Размер при этом заметно уменьшается, с 318,8 МБ в Bronze до 26,0 МБ в Silver и 0,1 МБ в Gold, потому что в каждом следующем слое остаются только нужные данные. Из кодеков сжатия ZSTD оказался лучшим выбором, так как данные с ним занимают лишь немного больше места, чем с GZIP, а записываются в полтора раза быстрее. Партиции на таком объёме не нужны, потому что они дали бы только много мелких файлов.
 
