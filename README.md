@@ -40,13 +40,13 @@ docker run -d --name trino -p 8081:8080 -v "${PWD}\catalog:/etc/trino/catalog" t
 <img width="1920" height="921" alt="image" src="https://github.com/user-attachments/assets/3cfbbcc9-1e4d-47bb-a609-bea57c671837" />
 
 
-<center><strong>Рисунок 1. MinIO с тремя бакетами</strong></center>
+<p align="center">Рисунок 1. MinIO с тремя бакетами</p>
 
 
 <img width="1920" height="925" alt="image" src="https://github.com/user-attachments/assets/d80a041c-adab-458c-80e5-eecc868c77e9" />
 
 
-<center><strong>Рисунок 2. Lakekeeper с тремя warehouse</strong></center>
+<p align="center">Рисунок 2. Lakekeeper с тремя warehouse</p>
 
 ## 3. Разбор запроса — какие данные нужны
 
