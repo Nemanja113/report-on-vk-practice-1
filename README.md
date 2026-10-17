@@ -13,16 +13,25 @@
 
 | Сервис | Роль в стеке | Почему именно он (а не альтернатива) |
 |---|---|---|
-| MinIO | S3-совместимое объектное хранилище (сюда физически падают parquet-файлы) | Совместим с S3, то есть работает как локальный аналог AWS S3, поэтому с ним работают и Trino, и Spark. Поднимается одним контейнером, а данные лежат в томе и не пропадают после перезапуска. Кроме того, у него есть веб-консоль, где удобно создавать бакеты и смотреть файлы. |
+| MinIO | S3-совместимое объектное хранилище (сюда физически падают parquet-файлы) | MinIO работает как локальный аналог AWS S3, поэтому не нужен облачный аккаунт, а Trino и Spark подключаются к нему так же, как к обычному S3. Он поднимается одним контейнером, а данные лежат в томе и не пропадают после перезапуска. Кроме того, в нём есть веб-консоль, в которой удобно создавать бакеты и смотреть файлы. |
 | PostgreSQL | БД, где Lakekeeper хранит метаданные каталога | Lakekeeper не умеет хранить информацию о таблицах сам по себе, поэтому ему нужна отдельная база, и он для этого использует PostgreSQL. Перед первым запуском каталога отдельной командой migrate в этой базе создаются таблицы самого каталога. База работает в отдельном контейнере, а её данные лежат в томе, поэтому каталог не теряет информацию о таблицах после перезапуска. |
-| Lakekeeper | Iceberg REST Catalog — каталог метаданных таблиц |  |
-| Trino | SQL-движок: ходит в Lakekeeper за метаданными и читает/пишет данные в MinIO | |
-| (BI: Superset / Metabase) | отчёт/дашборд поверх Gold |  |
+| Lakekeeper | Iceberg REST Catalog — каталог метаданных таблиц | Trino сам не знает, какие файлы в MinIO относятся к какой таблице, поэтому ему нужен каталог. Lakekeeper как раз и есть такой каталог: он хранит информацию о таблицах, а Trino сначала спрашивает у него, где лежат данные, и только потом читает файлы. Выбран именно он, потому что это готовый REST-каталог для Iceberg, который запускается одним контейнером, а для работы ему нужен только PostgreSQL. Благодаря этому Trino и Spark видят одни и те же таблицы, и данные не нужно копировать. Другой вариант, Hive Metastore, тоже хранит информацию о таблицах, но он сложнее в установке и настройке. |
+| Trino | SQL-движок: ходит в Lakekeeper за метаданными и читает/пишет данные в MinIO | Trino это SQL-движок: запросы пишутся на обычном SQL, а он сам спрашивает у Lakekeeper, где лежат данные, и читает или записывает файлы в MinIO. Для этой работы он подходит, потому что умеет работать с таблицами Iceberg. В нём есть встроенный коннектор tpch, который создаёт данные TPC-H прямо во время запроса, поэтому ничего скачивать не нужно. Кроме того, Trino быстро запускается и хорошо подходит для аналитических запросов, как мой запрос Q16. |
+| (BI: Superset / Metabase) | отчёт/дашборд поверх Gold | BI-инструмент я не использовал, а вместо него выбрал Spark. Я познакомился с ним на лабораторной работе, когда заполнял таблицу с результатами и сравнивал время запросов в Trino и Spark. Поэтому мне было проще работать именно с ним. |
 
 ### Скрипты, которыми поднимал стек
 
 ```powershell
-
+# MinIO — объектное хранилище: порт 9000 — S3 API, порт 9001 — веб-консоль, данные в томе minio-data
+docker run -d --name lakehouse-minio -p 9000:9000 -p 9001:9001 -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin -v minio-data:/data quay.io/minio/minio:latest server /data --console-address ":9001"
+# PostgreSQL — база для метаданных Lakekeeper: порт на компьютере 5433 вместо 5432, данные в томе pg-data
+docker run -d --name lakehouse-pg -e POSTGRES_PASSWORD=postgres -p 5433:5432 -v pg-data:/var/lib/postgresql/data postgres:17
+# Lakekeeper, миграция: создаёт таблицы каталога в PostgreSQL, запускается один раз
+docker run --rm -e 'LAKEKEEPER__PG_ENCRYPTION_KEY=This-is-NOT-Secure!' -e 'LAKEKEEPER__PG_DATABASE_URL_READ=postgresql://postgres:postgres@host.docker.internal:5433/postgres' -e 'LAKEKEEPER__PG_DATABASE_URL_WRITE=postgresql://postgres:postgres@host.docker.internal:5433/postgres' quay.io/lakekeeper/catalog:latest-main migrate
+# Lakekeeper — Iceberg REST Catalog на порту 8181, адрес PostgreSQL указан с портом 5433
+docker run -d --name lakekeeper -e 'LAKEKEEPER__PG_ENCRYPTION_KEY=This-is-NOT-Secure!' -e 'LAKEKEEPER__PG_DATABASE_URL_READ=postgresql://postgres:postgres@host.docker.internal:5433/postgres' -e 'LAKEKEEPER__PG_DATABASE_URL_WRITE=postgresql://postgres:postgres@host.docker.internal:5433/postgres' -p 8181:8181 quay.io/lakekeeper/catalog:latest-main serve
+# Trino — SQL-движок: порт на компьютере 8081 вместо 8080, папка catalog с файлами каталогов подключена в контейнер
+docker run -d --name trino -p 8081:8080 -v "${PWD}\catalog:/etc/trino/catalog" trinodb/trino:476
 ```
 
 ## 3. Разбор запроса — какие данные нужны
