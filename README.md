@@ -21,7 +21,7 @@
 
 ### Скрипты, которыми поднимал стек
 
-Стек поднял по гайду, но с изменениями в портах. Стандартные порты PostgreSQL и Trino оказались заняты, поэтому запустил PostgreSQL на порту 5433, а Trino на порту 8081. Из-за этого в адресе базы для Lakekeeper указал порт 5433. Бакеты bronze, silver и gold создал в консоли MinIO, а три warehouse с такими же именами создал в интерфейсе Lakekeeper. Файлы каталогов Trino лежат в папке catalog в репозитории, по одному файлу на каждый слой и файл tpch.properties для генератора данных. Также создал три бакета: bronze, silver и gold. Их можно увидеть на первом скриншоте. Для каждого слоя создал свой warehouse с таким же именем и привязал его к своему бакету. Все три warehouse имеют статус active, что видно на втором скриншоте.
+Стек поднял по гайду, но с изменениями в портах. Стандартные порты PostgreSQL и Trino оказались заняты, поэтому запустил PostgreSQL на порту 5433, а Trino на порту 8081. Из-за этого в адресе базы для Lakekeeper указал порт 5433. Бакеты bronze, silver и gold создал в консоли MinIO, а три warehouse с такими же именами создал в интерфейсе Lakekeeper. Файлы каталогов Trino лежат в папке catalog в репозитории, по одному файлу на каждый слой и файл tpch.properties для генератора данных.  
 
 ```powershell
 # MinIO: объектное хранилище, порт 9000 для S3 API, порт 9001 для веб-консоли, данные в томе minio-data
@@ -35,6 +35,9 @@ docker run -d --name lakekeeper -e 'LAKEKEEPER__PG_ENCRYPTION_KEY=This-is-NOT-Se
 # Trino: SQL-движок, порт на компьютере 8081 вместо 8080, папка catalog с файлами каталогов подключена в контейнер
 docker run -d --name trino -p 8081:8080 -v "${PWD}\catalog:/etc/trino/catalog" trinodb/trino:476
 ```
+<br>
+
+Также создал три бакета: bronze, silver и gold. Их можно увидеть на следующем скриншоте.
 
 <br>
 
@@ -42,7 +45,11 @@ docker run -d --name trino -p 8081:8080 -v "${PWD}\catalog:/etc/trino/catalog" t
 
 <br>
 
-<p align="center">Рисунок 1. MinIO с тремя бакетами</p>
+<strong><p align="center">Рисунок 1. MinIO с тремя бакетами</p></strong>
+
+<br>
+
+Для каждого слоя создал свой warehouse с таким же именем и привязал его к своему бакету. Все три warehouse имеют статус active, что видно на втором скриншоте.
 
 <br>
 
@@ -50,7 +57,7 @@ docker run -d --name trino -p 8081:8080 -v "${PWD}\catalog:/etc/trino/catalog" t
 
 <br>
 
-<p align="center">Рисунок 2. Lakekeeper с тремя warehouse</p>
+<strong><p align="center">Рисунок 2. Lakekeeper с тремя warehouse</p></strong>
 
 ## 3. Разбор запроса — какие данные нужны
 
